@@ -371,23 +371,46 @@ runs:
 
         make -j$(nproc --all) "${MAKE_FLAGS[@]}" O="$OUT" INSTALL_MOD_STRIP=1 INSTALL_MOD_PATH="$INSTALL_MOD_PATH" modules_install
 
-        # Collect RT5370 / RT2800USB modules as a separate debug artifact.
-        # RT5370 uses the rt2800usb driver and requires these dependencies.
+        # Collect RT5370 / RT2800USB modules.
+        # IMPORTANT: after modules_install the .ko files are under
+        # $INSTALL_MOD_PATH/lib/modules/$UNAME, not necessarily directly under $OUT.
         echo "=== RT5370 MODULE CHECK ==="
-        find "$OUT" -type f \(           -name 'rt2x00lib.ko' -o           -name 'rt2x00usb.ko' -o           -name 'rt2800lib.ko' -o           -name 'rt2800usb.ko'         \) -print
+        UNAME=$(ls "$INSTALL_MOD_PATH/lib/modules/")
+        MODULES_STAGING_ROOT="$INSTALL_MOD_PATH/lib/modules/$UNAME"
+
+        echo "INSTALL_MOD_PATH=$INSTALL_MOD_PATH"
+        echo "MODULES_STAGING_ROOT=$MODULES_STAGING_ROOT"
 
         mkdir -p "$ARTIFACTS_DIR_DEBUG/rt5370"
 
-        find "$OUT" -type f \(           -name 'rt2x00lib.ko' -o           -name 'rt2x00usb.ko' -o           -name 'rt2800lib.ko' -o           -name 'rt2800usb.ko'         \) -exec cp -v {} "$ARTIFACTS_DIR_DEBUG/rt5370/" \;
+        find "$MODULES_STAGING_ROOT" -type f \( \
+          -name 'rt2x00lib.ko' -o \
+          -name 'rt2x00usb.ko' -o \
+          -name 'rt2800lib.ko' -o \
+          -name 'rt2800usb.ko' \
+        \) -print
+
+        # Copy the exact modules needed by an RT5370/RT2800USB adapter.
+        for mod in rt2x00lib.ko rt2x00usb.ko rt2800lib.ko rt2800usb.ko; do
+          src=$(find "$MODULES_STAGING_ROOT" -type f -name "$mod" -print -quit)
+          if [ -z "$src" ]; then
+            echo "[ERROR] Missing $mod"
+            echo "[ERROR] RT5370 modules present in staging:"
+            find "$MODULES_STAGING_ROOT" -type f \( \
+              -name 'rt2x00*.ko' -o -name 'rt2800*.ko' \
+            \) -print || true
+            exit 1
+          fi
+          cp -v "$src" "$ARTIFACTS_DIR_DEBUG/rt5370/$mod"
+        done
 
         echo "=== RT5370 ARTIFACT ==="
         ls -lh "$ARTIFACTS_DIR_DEBUG/rt5370/"
 
-        RT5370_COUNT=$(find "$ARTIFACTS_DIR_DEBUG/rt5370" -type f -name '*.ko' | wc -l)
-        if [ "$RT5370_COUNT" -ne 4 ]; then
-          echo "[ERROR] Expected 4 RT5370 dependency modules, found $RT5370_COUNT"
-          exit 1
-        fi
+        # Keep a copy so the normal kernel-modules package can restore them
+        # after default_modules.txt filtering.
+        mkdir -p "$OUT/rt5370_required"
+        cp -v "$ARTIFACTS_DIR_DEBUG/rt5370/"*.ko "$OUT/rt5370_required/"
 
         make -j$(nproc --all) "${MAKE_FLAGS[@]}" O="$OUT" INSTALL_DTBS_PATH="$INSTALL_DTBS_PATH" DTB_TYPES="$DTB_TYPES" dtbs_install
 
@@ -826,6 +849,15 @@ runs:
         done < default_modules.txt
         cd ..
         echo "Modules remaining after filtering: $(find modules -type f -name '*.ko' | wc -l)"
+
+        # Restore RT5370 dependencies even if default_modules.txt filtered them.
+        echo "Restoring RT5370 modules after filtering..."
+        cp -v "$OUT/rt5370_required/"*.ko "$OUT/modules/"
+        echo "RT5370 modules in final package:"
+        ls -lh "$OUT/modules"/rt2x00lib.ko \
+               "$OUT/modules"/rt2x00usb.ko \
+               "$OUT/modules"/rt2800lib.ko \
+               "$OUT/modules"/rt2800usb.ko
 
     - name: Create Kernel Modules zip
       id: create_zip
