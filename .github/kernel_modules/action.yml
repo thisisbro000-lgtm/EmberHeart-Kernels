@@ -370,6 +370,25 @@ runs:
         make -j$(nproc --all) "${MAKE_FLAGS[@]}" O="$OUT" modules dtbs
 
         make -j$(nproc --all) "${MAKE_FLAGS[@]}" O="$OUT" INSTALL_MOD_STRIP=1 INSTALL_MOD_PATH="$INSTALL_MOD_PATH" modules_install
+
+        # Collect RT5370 / RT2800USB modules as a separate debug artifact.
+        # RT5370 uses the rt2800usb driver and requires these dependencies.
+        echo "=== RT5370 MODULE CHECK ==="
+        find "$OUT" -type f \(           -name 'rt2x00lib.ko' -o           -name 'rt2x00usb.ko' -o           -name 'rt2800lib.ko' -o           -name 'rt2800usb.ko'         \) -print
+
+        mkdir -p "$ARTIFACTS_DIR_DEBUG/rt5370"
+
+        find "$OUT" -type f \(           -name 'rt2x00lib.ko' -o           -name 'rt2x00usb.ko' -o           -name 'rt2800lib.ko' -o           -name 'rt2800usb.ko'         \) -exec cp -v {} "$ARTIFACTS_DIR_DEBUG/rt5370/" \;
+
+        echo "=== RT5370 ARTIFACT ==="
+        ls -lh "$ARTIFACTS_DIR_DEBUG/rt5370/"
+
+        RT5370_COUNT=$(find "$ARTIFACTS_DIR_DEBUG/rt5370" -type f -name '*.ko' | wc -l)
+        if [ "$RT5370_COUNT" -ne 4 ]; then
+          echo "[ERROR] Expected 4 RT5370 dependency modules, found $RT5370_COUNT"
+          exit 1
+        fi
+
         make -j$(nproc --all) "${MAKE_FLAGS[@]}" O="$OUT" INSTALL_DTBS_PATH="$INSTALL_DTBS_PATH" DTB_TYPES="$DTB_TYPES" dtbs_install
 
         echo "duration=$SECONDS" >> "$GITHUB_ENV"
