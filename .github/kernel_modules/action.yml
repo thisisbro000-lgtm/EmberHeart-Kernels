@@ -212,6 +212,17 @@ runs:
           --module CONFIG_MT7915E \
           --module CONFIG_MT7921E
 
+          # Ralink rt2x00 / RT5370
+         ./scripts/config --file arch/arm64/configs/gki_defconfig \
+          --module CONFIG_CFG80211 \
+          --module CONFIG_MAC80211 \
+          --module CONFIG_RT2X00_LIB \
+          --module CONFIG_RT2X00_LIB_USB \
+          --module CONFIG_RT2X00_LIB_FIRMWARE \
+          --module CONFIG_RT2X00_LIB_CRYPTO \
+          --module CONFIG_RT2800_LIB \
+          --module CONFIG_RT2800USB \
+          --enable CONFIG_RT2800USB_RT53XX
         # Other configs
         ./scripts/config --file arch/arm64/configs/gki_defconfig \
           --enable CONFIG_MAC80211_LEDS \
